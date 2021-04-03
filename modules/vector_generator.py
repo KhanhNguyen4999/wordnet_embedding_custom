@@ -578,7 +578,7 @@ def random_walk(p_matrix, dim, iter, log, from_file, stage, PMI_coef, main_path)
 
     return(g_rw)
 
-def random_walk(p_matrix, dim, iter, log, from_file, stage, PMI_coef, main_path): # ẩn số
+def my_random_walk(p_matrix, dim, iter, log, from_file, stage, PMI_coef, main_path): # ẩn số
     # công thức normalization nè : https://towardsdatascience.com/preprocessing-with-sklearn-a-complete-and-comprehensive-guide-670cb98fcfb9
     if not from_file:
         if iter == "infinite":

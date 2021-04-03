@@ -147,7 +147,7 @@ if not just_test:
 
     if approach == 1:
         #random walk -> PMI -> normalization   # không hiểu tại sao lại ghi trật tự như vậy
-        emb_matrix = random_walk(p_matrix, dim, iter, log, from_file, stage, non_zero, main_path) # Ẩn so
+        emb_matrix = my_random_walk(p_matrix, dim, iter, log, from_file, stage, non_zero, main_path) # Ẩn so
         # dimensionality reduction
         final_vec, feature_name, word_list = dimensionality_reduction(word_list, to_keep, reduction_method, emb_matrix, vec_dim, from_file, normalization, norm, log, saved_model, main_path)
 
