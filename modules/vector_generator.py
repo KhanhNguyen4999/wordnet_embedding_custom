@@ -594,12 +594,12 @@ def my_random_walk(p_matrix, dim, iter, log, from_file, stage, PMI_coef, main_pa
         if iter == "infinite":
             print("    Normalizing the relation matrix ... ")
             # print(np.isfinite(np.asanyarray(p_matrix)).all())
-            p_matrix = preprocessing.normalize(p_matrix, norm='l1')  # mình cho norm='l2' được không ta?
             # không biết là cách làm này có tạo ra 1 bản sao cần cấp phát vùng nhớ không
             # norm = l2
             # norm_l2 = np.sqrt(np.sum((p_matrix**2), axis=1)) # norm_l2 shape (n_rows, )
             # norm_l2 = norm_l2.reshape(-1,1) # (n_rows, ) -> (n_rows, 1)
             # p_matrix /= norm_l2 # apply broadcasting (n_rows, n_cols)-(n_rows, 1) --> lưu ý là nên dùng /= sẽ inplace trên vùng dữ liệu và không thay đổi kiểu dữ liệu của p_matrix
+
             # norm = l1
             norm_l1 = np.sum(abs(p_matrix), axis=1)  # norm_l2 shape (n_rows, )
             norm_l1 = norm_l1.reshape(-1, 1)  # (n_rows, ) -> (n_rows, 1)
