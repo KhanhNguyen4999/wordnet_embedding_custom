@@ -452,7 +452,159 @@ def random_walk(p_matrix, dim, iter, log, from_file, stage, PMI_coef, main_path)
             print("    Normalizing the relation matrix ... ")
             # print(np.isfinite(np.asanyarray(p_matrix)).all())
             p_matrix = preprocessing.normalize(p_matrix, norm='l1')  # mình cho norm='l2' được không ta?
-            p_matrix = np.array(p_matrix, dtype="float16")  # For ints
+            p_matrix = np.array(p_matrix, dtype="float16")  # bị lỗi vùng nhớ chỗ này nè, tự nhiên lại xin cấp phát 1 vùng nhớ tương tự nữa
+            array_writer(p_matrix, "p_matrix", "bin", main_path)
+
+            # to solve the singular matrix problem
+            print(
+            "    Adding very small random values in the matrix so it is not a singular matrix") # singular matrix là gì quên r ta
+            random.seed(7)
+            for i in range(dim[0] - 1):
+                if np.random.rand() > .5:
+                    p_matrix[i, i] += random.uniform(0, 0.00001)
+                else:
+                    p_matrix[i, i] -= random.uniform(0, 0.00001)
+
+            print ("    Random walk begins - matrix inverse calculation might take long")
+            # Grw = (I - alpha*P)^-1
+
+            # Vậy vấn đề vùng nhớ ở đây là do xin cấp thêm 1 vùng nhớ tương tự như vậy hả ta.
+            g_rw = inv_dense(np.identity(dim[0], dtype=np.float32) - (alpha * p_matrix))      # causes memory problem # hài vậy -----------------------
+            #g_rw = inv_dense(np.identity(dim[0]) - (alpha * p_matrix))      # causes memory problem
+
+        else:
+            print ("    Random walk begins - matrix multiplication might take long")
+            print("    Normalizing the relation matrix ... ")
+            p_matrix = preprocessing.normalize(p_matrix, norm='l1')
+
+            # Grm_r = alpha^r*P^r + Grw_(r_1)
+            G_last = np.identity(dim[0], dtype=np.float16)          # initializing G0
+            alp_itr = alpha
+            p_matrix_itr = p_matrix
+            pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=int(iter))
+            for i in pbar(range(int(iter))):
+                s = time.time()
+                g_rw = alp_itr * p_matrix_itr + G_last
+                G_last = g_rw
+                alp_itr *= alpha
+                p_matrix_itr = np.dot(p_matrix_itr, p_matrix)
+                f = time.time()
+                print("iteration %d takes %s seconds" %(i+1,str(round(f-s))))
+
+            del(p_matrix_itr)
+
+        finish_time = time.time()
+        print ("        Graph of random walk is created")
+        log.write("    Graph of random walk was created in %.3f seconds\n"%(finish_time-start_time))
+        del (p_matrix)
+        gc.collect()
+
+        array_writer(g_rw, "random_walk", "bin", main_path)
+
+        # to check the number of non-zero elements after the random walk
+        print("    Checking the number of non-zero elements in random walk matrix")
+        #non_zero = len(g_rw[np.nonzero(g_rw)])
+        non_zero =  -10
+        print("        %d elements out of %d elements are non-zero after the random walk" % (non_zero, dim[0] * dim[0]))
+        log.write("    %d elements out of %d elements are non-zero after the random walk\n" % (non_zero, dim[0] * dim[0]))
+
+    else:
+        if stage == "random_walk":
+            print("\n* Reading graph of random walk from the previous run")
+            log.write("\n* Reading graph of random walk from the previous run")
+            g_rw = array_loader(stage, main_path)
+
+    if not from_file or (from_file and stage == "random_walk"):
+        #PMI calculation
+        #PMI(Mij) = dim[0] x (Mij)/(Sum(elements in column j))
+        print("\n* Calculating PMI+")
+        log.write("\n* Calculating PMI+\n")
+
+        # max(0,log [G(x|y)/G(x123...n)])
+        start_time = time.time()
+        col_sum = np.sum(g_rw, axis=0)     #sum of each column
+        col_sum[col_sum == 0.0] = random.uniform(0, 0.0000001)
+
+        #g_rw must be multiplied by a number [PMI_coef] otherwise the PMI result will be 0 for all elements
+        # PMI_coef is the number of words in the main paper
+        PMI_coef = dim[0]
+
+        #an experiment on PMI_coef
+        """
+        digit = 0
+        while PMI_coef > 10:
+            PMI_coef /= 10
+            digit += 1
+        PMI_coef = int(math.pow(10,digit))
+        """
+        # mỗi ô trong ma trận g_rw thì mình có thể hỏi là xác xuất đồng xuất hiện của 2 từ đó ?
+        g_rw *= PMI_coef   # nếu nhân cho tổng hàng thì mình sẽ ra được kì vọng số lần đồng xuất hiện của 2 từ tương ứng đúng không ta?
+        pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=dim[0])
+        # for i in pbar(range(dim[0])): # mấy cách viết này và công dụng của pbar hình như giống với pdtm là chỉ để mình biết tiến hình đã thực hiện được bao nhiêu phần trăm.
+        #     denominator = col_sum[i]
+        #     for j in range(dim[1]):
+        #         element = float(g_rw[i,j])/denominator  # Hình như công thức có gì đó sai sai, sao nói là chia cho sum của cột thứ j mà. Cái này thì xét mặc định là chia cho sum của cột thứ i rồi.
+        #         if element <= 1:                            # Nếu muốn sửa thì phải đổi thứ tự vòng lặp đúng không?
+        #             g_rw[i, j] = 0
+        #         else:
+        #             g_rw[i, j] = math.log(element, 2)
+
+        # Cải thiện tốc độ tính toán của code bằng numpy và viết lại cho đúng theo công thức họ ghi trên kia.
+        for j in pbar(range(dim[1])):
+            denominator = col_sum[j]
+            g_rw[:,j] = g_rw[:,j]/denominator
+            g_rw[g_rw[:,j]<=1, j] = 0
+            if len(g_rw[:, j]>1)>0:
+                g_rw[g_rw[:,j]>1, j] = np.log2(g_rw[g_rw[:,j]>1, j])
+
+        finish_time = time.time()
+
+        print ("    PMI+ is created")
+        log.write("    PMI+ was created in %.3f seconds\n"%(finish_time-start_time))
+
+        array_writer(g_rw, "PMI", "bin", main_path)
+
+        print("    Checking the number of non-zero elements in PMI matrix")
+        #non_zero = len(g_rw[np.nonzero(g_rw)])
+        non_zero = -10
+        print("        %d elements out of %d elements are non-zero in PMI matrix" % (non_zero, dim[0] * dim[0]))
+        log.write("    %d elements out of %d elements are non-zero in PMI matrix\n" % (non_zero, dim[0] * dim[0]))
+    else:
+        if stage == "PMI":
+            print("\n* Reading the data from the previous run")
+            log.write("\n* Reading the data from the previous run")
+            #g_rw = array_loader(stage, main_path)
+            g_rw = array_loader("Normalized_random_walk", main_path)
+
+    return(g_rw)
+
+def random_walk(p_matrix, dim, iter, log, from_file, stage, PMI_coef, main_path): # ẩn số
+    # công thức normalization nè : https://towardsdatascience.com/preprocessing-with-sklearn-a-complete-and-comprehensive-guide-670cb98fcfb9
+    if not from_file:
+        if iter == "infinite":
+            model = "the matrix inverse"
+        else:
+            model = iter + " iterations"
+        print("\n* Random walk on the relations using %s "%(model))
+        log.write("\n* Random walk on the relations using %s iteration\n"%(iter))
+
+        alpha = 0.75
+
+        start_time = time.time()
+        if iter == "infinite":
+            print("    Normalizing the relation matrix ... ")
+            # print(np.isfinite(np.asanyarray(p_matrix)).all())
+            p_matrix = preprocessing.normalize(p_matrix, norm='l1')  # mình cho norm='l2' được không ta?
+            # không biết là cách làm này có tạo ra 1 bản sao cần cấp phát vùng nhớ không
+            # norm = l2
+            # norm_l2 = np.sqrt(np.sum((p_matrix**2), axis=1)) # norm_l2 shape (n_rows, )
+            # norm_l2 = norm_l2.reshape(-1,1) # (n_rows, ) -> (n_rows, 1)
+            # p_matrix /= norm_l2 # apply broadcasting (n_rows, n_cols)-(n_rows, 1) --> lưu ý là nên dùng /= sẽ inplace trên vùng dữ liệu và không thay đổi kiểu dữ liệu của p_matrix
+            # norm = l1
+            norm_l1 = np.sum(abs(p_matrix), axis=1)  # norm_l2 shape (n_rows, )
+            norm_l1 = norm_l1.reshape(-1, 1)  # (n_rows, ) -> (n_rows, 1)
+            p_matrix /= norm_l1  # apply broadcasting (n_rows, n_cols)-(n_rows, 1)
+
             array_writer(p_matrix, "p_matrix", "bin", main_path)
 
             # to solve the singular matrix problem
