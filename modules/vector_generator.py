@@ -602,8 +602,9 @@ def my_random_walk(p_matrix, dim, iter, log, from_file, stage, PMI_coef, main_pa
 
             # norm = l1
             norm_l1 = np.sum(abs(p_matrix), axis=1)  # norm_l2 shape (n_rows, )
-            norm_l1 = norm_l1.reshape(-1, 1)  # (n_rows, ) -> (n_rows, 1)
-            p_matrix /= norm_l1  # apply broadcasting (n_rows, n_cols)-(n_rows, 1)
+            print("hello")
+            norm_l1_reshape = norm_l1.reshape(-1, 1)  # (n_rows, ) -> (n_rows, 1)
+            p_matrix[norm_l1>0, :] /= norm_l1_reshape[norm_l1>0,:]  # apply broadcasting (n_rows, n_cols)-(n_rows, 1)
 
             array_writer(p_matrix, "p_matrix", "bin", main_path)
 
