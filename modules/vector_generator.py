@@ -943,36 +943,49 @@ def dimensionality_reduction_PCA_and_write_to_file(word_list, emb_matrix, vec_di
         # linear PCA
         print("PCA begins")
         pca = PCA_sklearn(copy=True, n_components=vec_dim, whiten=False)
-        jump=2000 # phải lớn hơn giá trị của vec_dim
+        jump=3000 # phải lớn hơn giá trị của vec_dim
         start=0
         out_file = open(main_path + "embeddings_" + iter + ".txt", "w")
         to_keep = len(word_list)
         out_file.write("%d %d\n" % (to_keep, vec_dim))
         try:
-            while start<=to_keep:
-                matrix_pca = pca.fit_transform(emb_matrix[start:start+jump])
+            while start + jump <= to_keep:
+                print(start)
 
+                matrix_pca = pca.fit_transform(emb_matrix[start:start + jump])
+                print('hello')
                 if vec_dim > len(emb_matrix[0]):
                     vec_dim = len(emb_matrix[0])
-                pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=len(word_list))
-                for i in pbar(range(start, start+jump)):
+                pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=start + jump)
+                print("hello")
+                for i in pbar(range(start, start + jump)):
                     wrd = word_list[i]
                     emb = ""
                     for j in range(vec_dim):
-                        emb += str(matrix_pca[i%jump][j]) + " "
+                        emb += str(matrix_pca[i % jump][j]) + " "
                     emb += "\n"
                     emb = emb.replace(" \n", "\n")  # sao code nhìn tốn chi phí quá vậy ta ví dụ code là: emb[-3:]="\n" được hơn không.
                     out_file.write(wrd + " " + emb)
-
                 start += jump
 
-            matrix_pca = pca.fit_transform(emb_matrix[start-jump:])
-
+            if to_keep % jump != 0:
+                matrix_pca = pca.fit_transform(emb_matrix[start:])
+                pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=to_keep)
+                for i in pbar(range(start, to_keep)):
+                    wrd = word_list[i]
+                    emb = ""
+                    for j in range(vec_dim):
+                        emb += str(matrix_pca[i % jump][j]) + " "
+                    emb += "\n"
+                    emb = emb.replace(" \n", "\n")  # sao code nhìn tốn chi phí quá vậy ta ví dụ code là: emb[-3:]="\n" được hơn không.
+                    out_file.write(wrd + " " + emb)
 
             out_file.close()
             print("\n-------------------------------------------------------------")
             print("Vector Embeddings are created and saved in \data\output folder")
             del (emb_matrix)
+            gc.collect()
+            del (matrix_pca)
             gc.collect()
 
         except:
