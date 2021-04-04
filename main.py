@@ -155,7 +155,7 @@ if not just_test:
         # writing the results into a file
         # emb_writer(final_vec, word_list, vec_dim, iter, feature_name, for_WSD, main_path)
 
-        dimensionality_reduction_PCA_and_write_to_file(word_list, emb_matrix,vec_dim,from_file,normalization,norm,log,main_path)
+        dimensionality_reduction_PCA_and_write_to_file(word_list, emb_matrix,vec_dim,from_file,normalization,norm,log, iter, main_path)
 
         finish_time = time.time()
         print("\nRequired time to process %d words: %.3f seconds ---" % (wrd_cnt, finish_time - start_time))
