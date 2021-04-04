@@ -884,6 +884,104 @@ def one_traverse(trans, max_depth, p_matrix, alpha):
 
     return p_matrix
 
+def dimensionality_reduction_PCA_and_write_to_file(word_list, emb_matrix, vec_dim, from_file, normalization, norm,
+                             log, main_path):
+    sklearn_limit = 60000
+    if emb_matrix != [] and vec_dim > len(emb_matrix[0]):
+        print("    no need for dimentionality reduction")
+        print(len(emb_matrix[0]))
+        if normalization:
+            if norm == 0 and from_file:
+                print("    Loading the normalized results from the previous run")
+                emb_vec = emb_matrix
+            else:
+                start_time = time.time()
+                if norm == 1:
+                    p_degree = 'l1'
+                elif norm == 2:
+                    p_degree = 'l2'
+                print("    Normalizing the results using %s norm" % (p_degree))
+                emb_vec = preprocessing.normalize(emb_matrix, norm=p_degree)
+                finish_time = time.time()
+                print("        the results are normalized")
+                log.write("    The results were normalized in %.3f seconds using %s norm\n" % (
+                    finish_time - start_time, p_degree))
+    else:
+        emb_vec = []
+
+        if len(emb_matrix) > sklearn_limit:
+            print("Sklearn does not work accurately in such high dimensions")
+
+        print("\n*Dimensionality reduction using " +  "Sklearn.PCA" )
+        log.write("\n*Dimensionality reduction using " +  "Sklearn.PCA" + "\n")
+
+        # Normalization
+        if normalization:
+            if norm == 0 and from_file:
+                print("    Loading the normalized results from the previous run")
+                # emb_matrix = array_loader("Normalized_random_walk", main_path)
+            else:
+                start_time = time.time()
+                if norm == 1:
+                    p_degree = 'l1'
+                else:
+                    p_degree = 'l2'
+                print("    Normalizing graph of random walk, using %s norm" % (p_degree))
+                norm_l2 = np.sqrt([np.sum(v ** 2) for v in emb_matrix])
+
+                for i in range(len(emb_matrix)):
+                    if norm_l2[i] > 0:
+                        emb_matrix[i, :] /= norm_l2[i]
+
+                finish_time = time.time()
+                print("        Random walk results are normalized")
+                log.write("    Random walk results were normalized in %.3f seconds using %s norm\n" % (
+                    finish_time - start_time, p_degree))
+                array_writer(emb_matrix, "Normalized_random_walk", "bin", main_path)
+
+        # PCA with sklearn
+        start_time = time.time()
+        # linear PCA
+        print("PCA begins")
+        pca = PCA_sklearn(copy=True, n_components=vec_dim, whiten=False)
+        jump=5000 # phải lớn hơn giá trị của vec_dim
+        start=0
+        out_file = open(main_path + "embeddings_" + iter + ".txt", "w")
+        to_keep = len(word_list)
+        out_file.write("%d %d\n" % (to_keep, vec_dim))
+        try:
+            while start<=to_keep:
+                matrix_pca = pca.fit_transform(emb_matrix[start:start+jump])
+                start+=jump
+
+                if vec_dim > len(emb_matrix[0]):
+                    vec_dim = len(emb_matrix[0])
+                pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=len(word_list))
+                for i in pbar(range(start, start+jump)):
+                    wrd = word_list[i]
+                    emb = ""
+                    for j in range(vec_dim):
+                        emb += str(matrix_pca[i][j]) + " "
+                    emb += "\n"
+                    emb = emb.replace(" \n", "\n")  # sao code nhìn tốn chi phí quá vậy ta ví dụ code là: emb[-3:]="\n" được hơn không.
+                    out_file.write(wrd + " " + emb)
+
+            matrix_pca = pca.fit_transform(emb_matrix[start-jump:])
+
+
+            out_file.close()
+            print("\n-------------------------------------------------------------")
+            print("Vector Embeddings are created and saved in \data\output folder")
+            del (emb_matrix)
+            gc.collect()
+
+        except:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            print("Unexpected error:", exc_value)
+
+
+
+
 
 def dimensionality_reduction(word_list, to_keep, reduction_method, emb_matrix, vec_dim, from_file, normalization, norm,
                              log, saved_model, main_path):

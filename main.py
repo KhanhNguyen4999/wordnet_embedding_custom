@@ -46,7 +46,7 @@ accepted_rel = ["all", "syn", "self_loop"]        # TO be set: wordnet relation 
                                                   # if accepted_rel = ["all"], all relations included in wordnet settings will be used
                                                   # "syn": synonymy    "@":hypernymy    "~":hyponymy      "!": antonymy
                                                   #  ["~", "@", "!"]      "self_loop": to assign 1.1 for [i,i] position in the matrix
-to_keep = "60000" #"12590" # "20154"   #13437                                # This number specifies how many of the extracted words are kept
+to_keep = "4000" #"12590" # "20154"   #13437                                # This number specifies how many of the extracted words are kept
                                                   #  if to_keep = all, all the words are kept
 vec_dim =  512                                    # TO be set: Dimension of the final vectors
 
@@ -88,12 +88,12 @@ just_test = False                                 # To be set: if true, only Gen
 embedding_file_name = ("auto","abc")              # The input file to Gensim. "auto" to use the last created embeddig file for the test or the file name
 #embedding_file_name = ("embeddings_infinite", "txt")
 
-main_path = os.getcwd()
+main_path = os.getcwd()+'/'
 #-----------------------------------------------------------------------------------------------------------------------
 
 if not just_test:
     path = main_path
-    log_file = path + "/en_1_log.txt"
+    log_file = path + "en_1_log.txt"
     log = open(log_file, "w")
 
     file_names = {"n":"data.noun","v":"data.verb","a":"data.adj","r":"data.adv"}
@@ -131,8 +131,8 @@ if not just_test:
                 info_writer(dim, int(to_keep), non_zero, for_WSD, main_path)
             wrd_cnt = len(word_set)
         else:# sử dụng lại matrix đã được xây dựng từ trước
-            p_matrix = array_loader("pMatrix", os.getcwd() + '/data/input/ngram/')
-            word_list = array_loader("word_list", os.getcwd() + '/data/input/ngram/')
+            p_matrix = array_loader("p_matrix", main_path)
+            word_list = array_loader("word_list", main_path)
             wrd_cnt = len(word_list)
             dim = (wrd_cnt, wrd_cnt)
             non_zero = -10
@@ -148,11 +148,14 @@ if not just_test:
     if approach == 1:
         #random walk -> PMI -> normalization   # không hiểu tại sao lại ghi trật tự như vậy
         emb_matrix = my_random_walk(p_matrix, dim, iter, log, from_file, stage, non_zero, main_path) # Ẩn so
+        # emb_matrix = np.load(main_path+'PMI.npy')
         # dimensionality reduction
-        final_vec, feature_name, word_list = dimensionality_reduction(word_list, to_keep, reduction_method, emb_matrix, vec_dim, from_file, normalization, norm, log, saved_model, main_path)
+        # final_vec, feature_name, word_list = dimensionality_reduction(word_list, to_keep, reduction_method, emb_matrix, vec_dim, from_file, normalization, norm, log, saved_model, main_path)
 
         # writing the results into a file
-        emb_writer(final_vec, word_list, vec_dim, iter, feature_name, for_WSD, main_path)
+        # emb_writer(final_vec, word_list, vec_dim, iter, feature_name, for_WSD, main_path)
+
+        dimensionality_reduction_PCA_and_write_to_file(word_list, emb_matrix,vec_dim,from_file,normalization,norm,log,main_path)
 
         finish_time = time.time()
         print("\nRequired time to process %d words: %.3f seconds ---" % (wrd_cnt, finish_time - start_time))
