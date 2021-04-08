@@ -337,7 +337,10 @@ def my_pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, ap
         cur_pos = parts[2]  # lấy pos
         cur_offset = parts[1]
         key = f'{cur_wrd.lower()}_{cur_offset}'
-        cur_sense_number = sense_number_per_word[f'{cur_wrd.lower()}_{cur_offset}']
+        try:
+            cur_sense_number = sense_number_per_word[f'{cur_wrd.lower()}_{cur_offset}']
+        except:
+            continue
         cur_wrd_indx = word_indx[cur_wrd]  # lay id cua word
 
         target_cnt = len(all_data[cur_pos][0][cur_synset][1])  # số lượng synset mà nó trỏ tới
@@ -379,8 +382,8 @@ def my_pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, ap
                                     target_wrd_indx = word_indx[target_wrd]
                                     target_offset = target_parts[1]
                                     target_pos = target_parts[2]
-                                    target_sense_number = sense_number_per_word[f'{target_wrd.lower()}_{target_offset}']
                                     try:
+                                        target_sense_number = sense_number_per_word[f'{target_wrd.lower()}_{target_offset}']
                                         synset_cur_wrd = wn.synset(f'{cur_wrd}.{cur_pos}.{cur_sense_number}')
                                         synset_target_wrd = wn.synset(f'{target_wrd}.{target_pos}.{target_sense_number}')
                                         weight = synset_cur_wrd.path_similarity(synset_target_wrd)
@@ -391,7 +394,7 @@ def my_pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, ap
                                     if weight==None:
                                         weight=0
                                         count+=1
-                                        print(synset_cur_wrd, " ", synset_target_wrd)
+                                        # print(synset_cur_wrd, " ", synset_target_wrd)
 
                                     sparse_matrix[(cur_wrd_indx, target_wrd_indx)] = sparse_matrix.setdefault(
                                         (cur_wrd_indx, target_wrd_indx), 0) + weight
