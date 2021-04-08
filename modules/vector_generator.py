@@ -386,7 +386,7 @@ def my_pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, ap
                                         weight = synset_cur_wrd.path_similarity(synset_target_wrd)
                                     except Exception as e:
                                         print("Error: ", e)
-                                        weight=0
+                                        weight=np.random.uniform(0, 0.001)
 
                                     if weight==None:
                                         weight=0
