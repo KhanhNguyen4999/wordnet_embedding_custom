@@ -68,6 +68,7 @@ def data_file_reader(file_name, lang):
             synsetConnections = []
             synsetRelationTypes = []
             connectedSynsetPos = []
+            lex_id=[]
 
             dataLineParts = dataLine.split(" ")
 
@@ -75,14 +76,20 @@ def data_file_reader(file_name, lang):
 
             indx = 4
             for i in range(wrdCnt):  # duyệt qua hết tất cả các từ trong synset đó và append vào synsetWrd
-                synsetWrds.append(dataLineParts[indx])
+                wrd = dataLineParts[indx]
+                if '(' in wrd:
+                    wrd = wrd.split('(')[0]
+                synsetWrds.append(wrd)
+
                 """
                 if dataLineParts[indx] not in all_word:
                     all_word.add(dataLineParts[indx])
                 else:
                     amb_word.add(dataLineParts[indx])
                 """
-                indx += 2
+                indx += 1
+                lex_id.append(dataLineParts[indx])
+                indx += 1
 
             connCnt = int(dataLineParts[indx]) # Chứa số lượng con tro tu synset nay toi cac synset khac
             indx += 1
@@ -100,7 +107,7 @@ def data_file_reader(file_name, lang):
             gloss = gloss.replace("\n","")
             gloss = gloss.replace("'","''")
 
-            data = (synsetWrds, synsetConnections, synsetRelationTypes, connectedSynsetPos, gloss)
+            data = (synsetWrds, synsetConnections, synsetRelationTypes, connectedSynsetPos, gloss, lex_id)
             file_data.update({dataLineParts[0]:data})
             offset_list.append(dataLineParts[0])
 

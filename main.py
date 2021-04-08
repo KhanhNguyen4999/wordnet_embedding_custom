@@ -117,10 +117,11 @@ if not just_test:
                 # Note: all_data["n"][1]["3"]     ---->  In offset list related to the data.noun file, fetch the third entry
 
             # to extract all the requiered information from the data files
+            sense_number_per_word = sense_number_extractor('index.sense')
             word_set, synset_wrd = word_extractor(all_pos, all_data, only_one_word, only_once, log)
 
             # to create the relation matrix  Ẩn số
-            p_matrix, dim, word_list, non_zero, synonym_index = my_pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, approach, for_WSD, accepted_rel, to_keep, log, main_path, lang)
+            p_matrix, dim, word_list, non_zero, synonym_index = my_pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, approach, for_WSD, accepted_rel, to_keep, log, main_path, lang, sense_number_per_word)
             # ghi ra file các thông tin về danh sách từ, danh sách các cặp index, p_matrix
             array_writer(word_list, "word_list", "bin", main_path)
             array_writer(synonym_index, "synonym_index", "bin", main_path)

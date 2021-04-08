@@ -42,6 +42,8 @@ import json
 
 from progressbar import ProgressBar, Percentage, Bar
 
+from nltk.corpus import wordnet as wn
+
 from modules.input_output import *
 
 import numpy as np
@@ -90,8 +92,9 @@ def word_extractor(all_pos, all_data, only_one_word, only_once, log):
                     words_wrdcnt.update({this_syn_wrd: 1})
                 else:
                     words_wrdcnt[this_syn_wrd] += 1
-                indx += 1
 
+                lex_id = all_data[pos][0][offset][5][indx]
+                indx += 1
                 key = offset + "_" + pos
                 if only_once:  # hình như là với mỗi từ chỉ lấy 1 nghĩa duy nhất của từ đó
                     if words_wrdcnt[this_syn_wrd] == 1:  # kiểm tra nếu từ này chỉ có 1 nghĩa
@@ -100,12 +103,12 @@ def word_extractor(all_pos, all_data, only_one_word, only_once, log):
                             {key: [this_syn_wrd + "_offset" + str(offset) + "\t" + str(offset) + "\t" + pos]})
                 else:  # cách xử lí với 1 từ nhiều nghĩa, thuộc 1 synset nào thì lưu thông tin từ đó ứng với synset đó luôn
                     word_set.add(this_syn_wrd + "_offset" + str(offset) + "\t" + str(
-                        offset) + "\t" + pos)  # lưu lại thông tin của 1 word
+                        offset) + "\t" + pos + '\t' + lex_id)  # lưu lại thông tin của 1 word
                     if key not in synset_wrd.keys():
                         synset_wrd.update({key: [this_syn_wrd + "_offset" + str(offset) + "\t" + str(
-                            offset) + "\t" + pos]})  # lưu lại thông tin các word trong 1 synset
+                            offset) + "\t" + pos + "\t" + lex_id]})  # lưu lại thông tin các word trong 1 synset
                     else:
-                        synset_wrd[key].append(this_syn_wrd + "_offset" + str(offset) + "\t" + str(offset) + "\t" + pos)
+                        synset_wrd[key].append(this_syn_wrd + "_offset" + str(offset) + "\t" + str(offset) + "\t" + pos + "\t" + lex_id)
 
                 if only_one_word:  # nếu mỗi synset chỉ lấy 1 từ thì thoát khỏi vòng lặp
                     new_wrd = True
@@ -285,7 +288,7 @@ def pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, appro
 
 
 def my_pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, approach, for_WSD, accepted_rel, to_keep,
-                       log, main_path, lang):
+                       log, main_path, lang, sense_number_per_word):
     start_time = time.time()
     print("\n* Creating the relation matrix")
     log.write("\n* Creating the relation matrix")
@@ -321,6 +324,9 @@ def my_pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, ap
 
     pbar = ProgressBar(widgets=[Percentage(), Bar()],
                        maxval=len(word_list))  # show thanh tiến trình chạy được bao nhiêu % rồi
+
+    count=0
+    sum_all=0
     for i in pbar(range(len(word_list))):
         parts = word_list[i].split("\t")
         if for_WSD:
@@ -329,6 +335,9 @@ def my_pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, ap
             cur_wrd = word_list[i].split("_offset")[0]
         cur_synset = parts[1]  # lấy synset id
         cur_pos = parts[2]  # lấy pos
+        cur_offset = parts[1]
+        key = f'{cur_wrd.lower()}_{cur_offset}'
+        cur_sense_number = sense_number_per_word[f'{cur_wrd.lower()}_{cur_offset}']
         cur_wrd_indx = word_indx[cur_wrd]  # lay id cua word
 
         target_cnt = len(all_data[cur_pos][0][cur_synset][1])  # số lượng synset mà nó trỏ tới
@@ -359,19 +368,31 @@ def my_pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, ap
                     if "all" in accepted_rel or target_synsets_relation[j] in accepted_rel:
                         key = target_synsets[j] + "_" + target_synsets_pos[j]
                         if key in synset_wrd.keys():
-                            target_wrds = synset_wrd[key]  # lấy ra danh sách các từ thuộc synset này
-                            for target_wrd in target_wrds:
+                            ls_target_wrds = synset_wrd[key]  # lấy ra danh sách các từ thuộc synset này
+                            for target_part in ls_target_wrds:
+                                target_parts = target_part.split('\t')
+                                target_wrd=target_parts[0]
                                 if not for_WSD:
-                                    target_wrd = target_wrd.split("_offset")[0]
+                                    target_wrd = target_part.split("_offset")[0]
                                 if target_wrd != cur_wrd:  # xét các từ khác cur_word thuộc các synset có mối quan hệ với synset chứa cur_word
+                                    sum_all+=1
                                     target_wrd_indx = word_indx[target_wrd]
-                                    if equal_weight:
-                                        weight = 1
-                                    else:
-                                        if target_synsets_relation[j] in weights.keys():
-                                            weight = weights[target_synsets_relation[j]]
-                                        else:
-                                            weight = .5
+                                    target_offset = target_parts[1]
+                                    target_pos = target_parts[2]
+                                    target_sense_number = sense_number_per_word[f'{target_wrd.lower()}_{target_offset}']
+                                    try:
+                                        synset_cur_wrd = wn.synset(f'{cur_wrd}.{cur_pos}.{cur_sense_number}')
+                                        synset_target_wrd = wn.synset(f'{target_wrd}.{target_pos}.{target_sense_number}')
+                                        weight = synset_cur_wrd.path_similarity(synset_target_wrd)
+                                    except Exception as e:
+                                        print("Error: ", e)
+                                        weight=0
+
+                                    if weight==None:
+                                        weight=0
+                                        count+=1
+                                        print(synset_cur_wrd, " ", synset_target_wrd)
+
                                     sparse_matrix[(cur_wrd_indx, target_wrd_indx)] = sparse_matrix.setdefault(
                                         (cur_wrd_indx, target_wrd_indx), 0) + weight
                         # else:
@@ -379,7 +400,8 @@ def my_pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, ap
                         # NOTE: this only happens for ambiguous words and when only one sense of them is selected.
         # else:
         #     print("No target for " + str(cur_synset))
-
+    print('Gia tri bien count : ', count)
+    print("Gia tri bien sum_all: ", sum_all)
     # handling synonymy
     # riêng các từ mà nằm trong cùng synset với từ hiện tại thì chắc chắn weight =1
     if approach == 1 and "syn" in accepted_rel:
@@ -440,6 +462,23 @@ def my_pMatrix_builder(all_data, all_pos, word_set, synset_wrd, equal_weight, ap
             p_matrix = contruct_matrix_from_coo_format(sparse_matrix, dim)
         print("************Number of words are %d after the cut" % (len(word_list)))
         return p_matrix, dim, word_list, non_zero, np.array(list(synonym_index))
+
+
+def sense_number_extractor(file_name):
+    path = os.getcwd() + '/data/'
+    fl = open(path + file_name)
+    src = fl.readlines()
+    fl.close()
+    sense_number_per_word = {}
+    for i in range(len(src)):
+        line = src[i].strip()
+        parts = line.split(" ")
+        offset_id = parts[1]
+        sense_number = parts[2]
+        wrd = line.split("%")[0]
+        sense_number_per_word[f'{wrd}_{offset_id}'] = int(sense_number)
+
+    return sense_number_per_word
 
 
 def contruct_matrix_from_coo_format(sparse_matrix, dim):
@@ -628,7 +667,7 @@ def my_random_walk(p_matrix, dim, iter, log, from_file, stage, PMI_coef, main_pa
                 if norm_l1[i] > 0:
                     p_matrix[i, :] /= norm_l1[i]
 
-            array_writer(p_matrix, "p_matrix_2", "bin", main_path)
+            array_writer(p_matrix, "p_matrix", "bin", main_path)
 
             # to solve the singular matrix problem
             print(
@@ -651,7 +690,7 @@ def my_random_walk(p_matrix, dim, iter, log, from_file, stage, PMI_coef, main_pa
             del (p_matrix)
             gc.collect()
             print('hello')
-            g_rw = inv_scipy(identity_matrix)  # causes memory problem # hài vậy -----------------------
+            g_rw = inv_scipy(identity_matrix)  # output trả về vẫn là float 32 nha # causes memory problem # hài vậy -----------------------
             del (identity_matrix)
             gc.collect()
             # g_rw = inv_dense(np.identity(dim[0]) - (alpha * p_matrix))      # causes memory problem
@@ -953,11 +992,9 @@ def dimensionality_reduction_PCA_and_write_to_file(word_list, emb_matrix, vec_di
                 print(start)
 
                 matrix_pca = pca.fit_transform(emb_matrix[start:start + jump])
-                print('hello')
                 if vec_dim > len(emb_matrix[0]):
                     vec_dim = len(emb_matrix[0])
                 pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=start + jump)
-                print("hello")
                 for i in pbar(range(start, start + jump)):
                     wrd = word_list[i]
                     emb = ""
@@ -1231,7 +1268,7 @@ def my_sort_rem(sparse_matrix, word_list, synonym_index, to_keep, lang, dim):
 
         # Nếu mình lưu kiêu kia thì đây là phần code của mình
         zeros_cnt = [dim - len(np.where(rows == i)[0]) for i in range(dim)]  # we will retain the structure
-        indx = np.array(zeros_cnt)[::-1].argsort()
+        indx = np.array(zeros_cnt)[::-1].argsort() # trong báo nóiình sẽ loại bỏ những phần tử thưa thớt nhất từ trên xuống dưới, mà nếu code như vậy thì bị mất thứ tự ở mảng gốc rồi
 
         indx = list(indx)
         to_del = dim - to_keep
